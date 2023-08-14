@@ -7,6 +7,8 @@ import math
 from collections import OrderedDict
 import copy
 
+from .identity import Identity
+
 cfg = {
 	'resnet6'	: [1,1,0,0],
 	'resnet12' 	: [1,1,1,1],
@@ -292,8 +294,8 @@ class RESNET_SNN_STDB(nn.Module):
 		#self.height = self.height//self.avgpool.kernel_size
 
 		#final classifier layer
-		if not isinstance(self.fc, nn.Identity):
 		# handle the case when fc is an Identity module
+		if not isinstance(self.fc, Identity):
 			self.mem[pos] = torch.zeros(self.batch_size, self.fc.out_features)
 
 		self.spike = copy.deepcopy(self.mem)
@@ -351,7 +353,7 @@ class RESNET_SNN_STDB(nn.Module):
 			out_prev = out_prev.view(self.batch_size, -1)
 
 			# Compute the classification layer outputs
-			if not isinstance(self.fc, nn.Identity):
+			if not isinstance(self.fc, Identity):
 			# handle the case when fc is an Identity module
 				self.mem[pos] = self.mem[pos] + self.fc(out_prev)
 			
