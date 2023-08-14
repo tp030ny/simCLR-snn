@@ -7,17 +7,7 @@ Including support for:
 
 [Link to paper](https://arxiv.org/pdf/2002.05709.pdf)
 
-Open SimCLR in Google Colab Notebook (with TPU support)
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1ObAYvVKQjMG5nd2wIno7j2y_X91E9IrX)
-
-Open SimCLR results comparison on tensorboard.dev:
-
-<p align="left">
-  <a href="https://tensorboard.dev/experiment/A3laNdafRBes0oR45Y6LiA/#scalars" target="_blank">
-    <img src="https://github.com/Spijkervet/SimCLR/blob/master/media/tensorboard.png?raw=true" height="40"/>
-  </a>
-</p>
 
 
 ### Quickstart (fine-tune linear classifier)
@@ -145,17 +135,6 @@ logistic_batch_size: 256
 logistic_epochs: 100
 ```
 
-## Logging and TensorBoard
-To view results in TensorBoard, run:
-```
-tensorboard --logdir runs
-```
-
-## Optimizers and learning rate schedule
-This implementation features the Adam optimizer and the LARS optimizer, with the option to decay the learning rate using a cosine decay schedule. The optimizer and weight decay can be configured in the `config/config.yaml` file.
-<p align="center">
-  <img src="https://github.com/Spijkervet/SimCLR/blob/master/media/lr_cosine_decay_schedule.png?raw=true" width="400"/>
-</p>
 
 #### Dependencies
 ```
