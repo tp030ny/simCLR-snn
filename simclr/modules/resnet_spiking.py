@@ -185,9 +185,8 @@ class RESNET_SNN_STDB(nn.Module):
 		self.layer3 		= self._make_layer(block, 256, cfg[self.resnet_name][2], stride=2, dropout=self.dropout)
 		self.layer4 		= self._make_layer(block, 512, cfg[self.resnet_name][3], stride=2, dropout=self.dropout)
 		#self.avgpool 		= nn.AvgPool2d(2)
-		self.fc             = nn.Sequential(
-									nn.Linear(512*2*2, labels, bias=False)
-									)
+		self.fc             = nn.Linear(512*2*2, labels, bias=False)
+
 
 		self.layers = {1: self.layer1, 2: self.layer2, 3: self.layer3, 4:self.layer4}
 
@@ -293,7 +292,7 @@ class RESNET_SNN_STDB(nn.Module):
 		#self.height = self.height//self.avgpool.kernel_size
 
 		#final classifier layer
-		self.mem[pos] = torch.zeros(self.batch_size, self.fc[0].out_features)
+		self.mem[pos] = torch.zeros(self.batch_size, self.fc.out_features)
 
 		self.spike = copy.deepcopy(self.mem)
 		for key, values in self.spike.items():
@@ -350,7 +349,7 @@ class RESNET_SNN_STDB(nn.Module):
 			out_prev = out_prev.view(self.batch_size, -1)
 
 			# Compute the classification layer outputs
-			self.mem[pos] = self.mem[pos] + self.fc[0](out_prev)
+			self.mem[pos] = self.mem[pos] + self.fc(out_prev)
 			
 		if find_max_mem:
 			return max_mem
