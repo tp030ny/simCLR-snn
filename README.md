@@ -1,5 +1,5 @@
-# SimCLR
-PyTorch implementation of SimCLR: A Simple Framework for Contrastive Learning of Visual Representations by T. Chen et al.
+# SimCLR-snn-version
+PyTorch implementation of SimCLR by snn: A Simple Framework for Contrastive Learning of Visual Representations by T. Chen et al.
 Including support for:
 - Distributed data parallel training
 - Global batch normalization
@@ -66,30 +66,6 @@ CUDA_VISIBLE_DEVICES=1 python main.py --nodes 2 --nr 1
 CUDA_VISIBLE_DEVICES=2 python main.py --nodes 2 --nr 2
 CUDA_VISIBLE_DEVICES=N python main.py --nodes 2 --nr 3
 ```
-
-
-### Results
-These are the top-1 accuracy of linear classifiers trained on the (frozen) representations learned by SimCLR:
-
-| Method  | Batch Size | ResNet | Projection output dimensionality | Epochs | Optimizer | STL-10 | CIFAR-10
-| ------------- | ------------- | ------------- | ------------- | ------------- | ------------- | ------------- | ------------- |
-| SimCLR + Linear eval. | 256 | ResNet50 | 64 | 100 | Adam | **0.829** | **0.833** | 
-| SimCLR + Linear eval. | 256 | ResNet50 | 64 | 100 | LARS | 0.783 | - | 
-| SimCLR + Linear eval. | 256 | ResNet18 | 64 | 100 |  Adam | 0.765  | - |
-| SimCLR + Linear eval. | 256 | ResNet18 | 64 | 40 | Adam | 0.719  | - |
-| SimCLR + Linear eval. | 512 | ResNet18 | 64 | 40 | Adam | 0.71 | - |
-| Logistic Regression | - | - | - | 40 | Adam | 0.358 | 0.389 |
-
-
-
-### Pre-trained models
-| ResNet (batch_size, epochs) | Optimizer | STL-10 Top-1 |
-| ------------- | ------------- | ------------- |
-| [ResNet50 (256, 100)](https://github.com/Spijkervet/SimCLR/releases/download/1.2/checkpoint_100.tar) | Adam | **0.829** |
-| [ResNet18 (256, 100)](https://github.com/Spijkervet/SimCLR/releases/download/1.1/checkpoint_100.tar) | Adam | 0.765 |
-| [ResNet18 (256, 40)](https://github.com/Spijkervet/SimCLR/releases/download/1.0/checkpoint_40.tar) | Adam | 0.719 |
-
-`python linear_evaluation.py --model_path=. --epoch_num=100`
 
 #### LARS optimizer
 The LARS optimizer is implemented in `modules/lars.py`. It can be activated by adjusting the `config/config.yaml` optimizer setting to: `optimizer: "LARS"`. It is still experimental and has not been thoroughly tested.
