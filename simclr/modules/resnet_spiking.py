@@ -292,7 +292,10 @@ class RESNET_SNN_STDB(nn.Module):
 		#self.height = self.height//self.avgpool.kernel_size
 
 		#final classifier layer
-		self.mem[pos] = torch.zeros(self.batch_size, self.fc.out_features)
+		if isinstance(self.fc, nn.Identity):
+		# handle the case when fc is an Identity module
+		else:
+			self.mem[pos] = torch.zeros(self.batch_size, self.fc.out_features)
 
 		self.spike = copy.deepcopy(self.mem)
 		for key, values in self.spike.items():
@@ -349,7 +352,10 @@ class RESNET_SNN_STDB(nn.Module):
 			out_prev = out_prev.view(self.batch_size, -1)
 
 			# Compute the classification layer outputs
-			self.mem[pos] = self.mem[pos] + self.fc(out_prev)
+			if isinstance(self.fc, nn.Identity):
+			# handle the case when fc is an Identity module
+			else:
+				self.mem[pos] = self.mem[pos] + self.fc(out_prev)
 			
 		if find_max_mem:
 			return max_mem
