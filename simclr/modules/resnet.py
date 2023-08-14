@@ -1,4 +1,5 @@
 import torchvision
+from resnet_spiking import *
 
 
 def get_resnet(name, pretrained=False):
@@ -9,3 +10,9 @@ def get_resnet(name, pretrained=False):
     if name not in resnets.keys():
         raise KeyError(f"{name} is not a valid ResNet version")
     return resnets[name]
+
+def get_resnet_spking(name, pretrained=False):
+    return RESNET_SNN_STDB(resnet_name=name, activation='STDB',
+                           labels=1000, timesteps=100, leak=1.0,
+                           default_threshold=1.0, alpha=0.3,
+                           beta=0.01, dropout=0.3)

@@ -15,7 +15,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 # SimCLR
 from simclr import SimCLR
-from simclr.modules import NT_Xent, get_resnet
+from simclr.modules import NT_Xent, get_resnet, get_resnet_spking
 from simclr.modules.transformations import TransformsSimCLR
 from simclr.modules.sync_batchnorm import convert_model
 
@@ -68,7 +68,7 @@ def main(gpu, args):
             args.dataset_dir,
             split="unlabeled",
             download=True,
-            transform=TransformsSimCLR(size=args.image_size),
+            transform=TransformsSimCLR(size=args.image_size), #argmentation
         )
     elif args.dataset == "CIFAR10":
         train_dataset = torchvision.datasets.CIFAR10(
@@ -95,8 +95,8 @@ def main(gpu, args):
         sampler=train_sampler,
     )
 
-    # initialize ResNet
-    encoder = get_resnet(args.resnet, pretrained=False)
+    # initialize ResNet, encoder is resnet
+    encoder = get_resnet_spking(args.resnet, pretrained=False)
     n_features = encoder.fc.in_features  # get dimensions of fc layer
 
     # initialize model
