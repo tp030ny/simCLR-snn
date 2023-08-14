@@ -167,16 +167,16 @@ class RESNET_SNN_STDB(nn.Module):
 		self.mask 			= {}
 		self.spike 			= {}
 
-		self.pre_process      = nn.Sequential(
-                                nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False),
-                                nn.ReLU(),
-                                nn.Dropout(self.dropout),
-                                nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1, bias=False),
-                                nn.ReLU(),
-                                nn.Dropout(self.dropout),
-                                nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1, bias=False),
-                                nn.ReLU(),
-                                nn.AvgPool2d(2))
+		self.pre_process    = nn.Sequential(
+								nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False),
+								nn.ReLU(),
+								nn.Dropout(self.dropout),
+								nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1, bias=False),
+								nn.ReLU(),
+								nn.Dropout(self.dropout),
+								nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1, bias=False),
+								nn.ReLU(),
+								nn.AvgPool2d(2))
 		block 				= BasicBlock
 		self.in_planes      = 64
 		
@@ -185,7 +185,7 @@ class RESNET_SNN_STDB(nn.Module):
 		self.layer3 		= self._make_layer(block, 256, cfg[self.resnet_name][2], stride=2, dropout=self.dropout)
 		self.layer4 		= self._make_layer(block, 512, cfg[self.resnet_name][3], stride=2, dropout=self.dropout)
 		#self.avgpool 		= nn.AvgPool2d(2)
-		self.classifier     = nn.Sequential(
+		self.fc             = nn.Sequential(
 									nn.Linear(512*2*2, labels, bias=False)
 									)
 
@@ -268,7 +268,6 @@ class RESNET_SNN_STDB(nn.Module):
 			
 			if isinstance(self.pre_process[l], nn.Conv2d):
 				self.mem[l] = torch.zeros(self.batch_size, self.pre_process[l].out_channels, self.width, self.height)
-
 			elif isinstance(self.pre_process[l], nn.Dropout):
 				self.mask[l] = self.pre_process[l](torch.ones(self.mem[l-2].shape))
 			elif isinstance(self.pre_process[l], nn.AvgPool2d):
@@ -294,7 +293,7 @@ class RESNET_SNN_STDB(nn.Module):
 		#self.height = self.height//self.avgpool.kernel_size
 
 		#final classifier layer
-		self.mem[pos] = torch.zeros(self.batch_size, self.classifier[0].out_features)
+		self.mem[pos] = torch.zeros(self.batch_size, self.fc[0].out_features)
 
 		self.spike = copy.deepcopy(self.mem)
 		for key, values in self.spike.items():
@@ -304,7 +303,6 @@ class RESNET_SNN_STDB(nn.Module):
 	def forward(self, x, find_max_mem=False, max_mem_layer=0):
 		
 		self.neuron_init(x)
-		
 		# for key, values in self.mem.items():
 		# 	values[0].detach_()
 		# for key, values in self.spike.items():
@@ -313,15 +311,10 @@ class RESNET_SNN_STDB(nn.Module):
 		# 	values.detach_()
 
 		max_mem = 0.0
-		
 		for t in range(self.timesteps):
-
 			out_prev = self.input_layer(x)
-					
 			for l in range(len(self.pre_process)): #预处理层
-							
 				if isinstance(self.pre_process[l], nn.Conv2d):
-					
 					if find_max_mem and l==max_mem_layer:
 						if (self.pre_process[l](out_prev)).max()>max_mem:
 							max_mem = (self.pre_process[l](out_prev)).max()
@@ -340,14 +333,12 @@ class RESNET_SNN_STDB(nn.Module):
 
 				elif isinstance(self.pre_process[l], nn.AvgPool2d):
 					out_prev 		= self.pre_process[l](out_prev)
-				
 				elif isinstance(self.pre_process[l], nn.Dropout):
 					out_prev 		= out_prev * self.mask[l]
 			
 			if find_max_mem and max_mem_layer<len(self.pre_process):
 				continue
-				
-			pos 	= len(self.pre_process)
+			pos = len(self.pre_process)
 			
 			for i in range(1,5):
 				layer = self.layers[i]
@@ -359,7 +350,7 @@ class RESNET_SNN_STDB(nn.Module):
 			out_prev = out_prev.view(self.batch_size, -1)
 
 			# Compute the classification layer outputs
-			self.mem[pos] = self.mem[pos] + self.classifier[0](out_prev)
+			self.mem[pos] = self.mem[pos] + self.fc[0](out_prev)
 			
 		if find_max_mem:
 			return max_mem
