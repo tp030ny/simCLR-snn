@@ -1,5 +1,5 @@
 import torchvision
-from resnet_spiking import *
+from .resnet_spiking import *
 
 
 def get_resnet(name, pretrained=False):
