@@ -276,6 +276,7 @@ class RESNET_SNN_STDB(nn.Module):
                 self.height = self.height // self.pre_process[l].kernel_size
 
         pos = len(self.pre_process)
+        print('pre_mem_pos:', pos)
         for i in range(1, 5):
             layer = self.layers[i]
             self.width = self.width // layer[0].residual[0].stride[0]
