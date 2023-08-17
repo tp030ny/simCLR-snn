@@ -151,7 +151,7 @@ class RESNET_SNN_STDB(nn.Module):
                  alpha=0.5, beta=0.035, dropout=0.2):
         super().__init__()
 
-        self.device = 'cpu'
+        self.device = 'cuda:0'
         self.resnet_name = resnet_name.lower()
         if activation == 'Linear':
             self.act_func = LinearSpike.apply
@@ -267,8 +267,7 @@ class RESNET_SNN_STDB(nn.Module):
         for l in range(len(self.pre_process)):
 
             if isinstance(self.pre_process[l], nn.Conv2d):
-                self.mem[l] = torch.zeros(self.batch_size, self.pre_process[l].out_channels, self.width, self.height,
-                                          device=self.device)
+                self.mem[l] = torch.zeros(self.batch_size, self.pre_process[l].out_channels, self.width, self.height)
             elif isinstance(self.pre_process[l], nn.Dropout):
                 self.mask[l] = self.pre_process[l](torch.ones(self.mem[l - 2].shape, device=self.device))
             elif isinstance(self.pre_process[l], nn.AvgPool2d):
@@ -285,7 +284,7 @@ class RESNET_SNN_STDB(nn.Module):
                 for l in range(len(layer[index].residual)):
                     if isinstance(layer[index].residual[l], nn.Conv2d):
                         self.mem[pos] = torch.zeros(self.batch_size, layer[index].residual[l].out_channels, self.width,
-                                                    self.height, device=self.device)
+                                                    self.height)
                         pos = pos + 1
                     elif isinstance(layer[index].residual[l], nn.Dropout):
                         self.mask[pos - 1] = layer[index].residual[l](
@@ -298,7 +297,7 @@ class RESNET_SNN_STDB(nn.Module):
         # final classifier layer
         # handle the case when fc is an Identity module
         if not isinstance(self.fc, Identity):
-            self.mem[pos] = torch.zeros(self.batch_size, self.fc.out_features, device=self.device)
+            self.mem[pos] = torch.zeros(self.batch_size, self.fc.out_features)
 
         self.spike = copy.deepcopy(self.mem)
         for key, values in self.spike.items():
@@ -360,9 +359,9 @@ class RESNET_SNN_STDB(nn.Module):
             # Compute the classification layer outputs
             if not isinstance(self.fc, Identity):
                 # handle the case when fc is an Identity module
-                self.mem[pos] = self.mem[pos] + self.fc(out_prev)
+                self.mem[pos] = self.mem[pos] + self.fc(out_prev).cpu()
 
         if find_max_mem:
             return max_mem
 
-        return self.mem[pos]
+        return self.mem[pos].to(self.device)
