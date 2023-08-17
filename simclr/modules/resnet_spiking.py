@@ -40,7 +40,7 @@ class STDB(torch.autograd.Function):
 		return out
 
 	@staticmethod
-	def backward(ctx, grad_output):
+	def backward(:ctx, grad_output):
 
 		last_spike, = ctx.saved_tensors
 		grad_input = grad_output.clone()
@@ -62,94 +62,93 @@ class LinearSpike(torch.autograd.Function):
 		out[input > 0] = 1.0
 		return out
 
-    @staticmethod
-    def backward(ctx, grad_output):
+	@staticmethod
+	def backward(ctx, grad_output):
         
-        input,     = ctx.saved_tensors
-        grad_input = grad_output.clone()
-        grad       = LinearSpike.gamma*F.threshold(1.0-torch.abs(input), 0, 0)
-        return grad*grad_input, None
+		input,     = ctx.saved_tensors
+		grad_input = grad_output.clone()
+		grad       = LinearSpike.gamma*F.threshold(1.0-torch.abs(input), 0, 0)
+		return grad*grad_input, None
 
 class BasicBlock(nn.Module):
-    expansion = 1
+	expansion = 1
 
-    def __init__(self, in_planes, planes, stride, dropout):
-        #print('In __init__ BasicBlock')
+	def __init__(self, in_planes, planes, stride, dropout):
+		#print('In __init__ BasicBlock')
         #super(BasicBlock, self).__init__()
         super().__init__()
 
-        self.residual = nn.Sequential(
+		self.residual = nn.Sequential(
             nn.Conv2d(in_planes, planes, kernel_size=3, stride=stride, padding=1, bias=False),
             nn.ReLU(),
             nn.Dropout(dropout),
             nn.Conv2d(planes, planes, kernel_size=3, stride=1, padding=1, bias=False),
-            )
-        self.identity = nn.Sequential()
-        if stride != 1 or in_planes != self.expansion*planes:
-            self.identity = nn.Sequential(
+			)
+		self.identity = nn.Sequential()
+		if stride != 1 or in_planes != self.expansion*planes:
+			self.identity = nn.Sequential(
                 nn.Conv2d(in_planes, self.expansion*planes, kernel_size=1, stride=stride, bias=False),
                 #nn.BatchNorm2d(self.expansion*planes)
             )
 
-    def forward(self, dic):
-        #print('In forward BasicBlock')
-        #pdb.set_trace()
-        out_prev 		= dic['out_prev']
-        pos 			= dic['pos']
-        act_func 		= dic['act_func']
-        mem 			= dic['mem']
-        spike 			= dic['spike']
-        mask 			= dic['mask']
-        threshold 		= dic['threshold']
-        t 				= dic['t']
-        leak			= dic['leak']
-        #find_max_mem 	= dic['find_max_mem']
-        inp				= out_prev.clone()
-        # for m in mem:
-        # 	m.detach_()
-        # for s in spike:
-        # 	s.detach_()
+	def forward(self, dic):
+		#print('In forward BasicBlock')
+		#pdb.set_trace()
+		out_prev 		= dic['out_prev']
+		pos 			= dic['pos']
+		act_func 		= dic['act_func']
+		mem 			= dic['mem']
+		spike 			= dic['spike']
+		mask 			= dic['mask']
+		threshold 		= dic['threshold']
+		t 				= dic['t']
+		leak			= dic['leak']
+		#find_max_mem 	= dic['find_max_mem']
+		inp				= out_prev.clone()
+		# for m in mem:
+		# 	m.detach_()
+		# for s in spike:
+		# 	s.detach_()
 
-        mem_thr 	= (mem[pos]/threshold[pos]) - 1.0
-        out 		= act_func(mem_thr, (t-1-spike[pos]))
-        rst 		= threshold[pos] * (mem_thr>0).float()
-        spike[pos] 	= spike[pos].masked_fill(out.bool(),t-1)
-        mem[pos] 		= leak*mem[pos] + self.residual[0](inp) - rst
-        out_prev  	= out.clone()
+		mem_thr 	= (mem[pos]/threshold[pos]) - 1.0
+		out 		= act_func(mem_thr, (t-1-spike[pos]))
+		rst 		= threshold[pos] * (mem_thr>0).float()
+		spike[pos] 	= spike[pos].masked_fill(out.bool(),t-1)
+		mem[pos] 		= leak*mem[pos] + self.residual[0](inp) - rst
+		out_prev  	= out.clone()
 
-        out_prev 	= out_prev * mask[pos]
+		out_prev 	= out_prev * mask[pos]
 
-        mem_thr 	= (mem[pos+1]/threshold[pos+1]) - 1.0
-        out 		= act_func(mem_thr, (t-1-spike[pos+1]))
-        rst 		= threshold[pos+1] * (mem_thr>0).float()
-        spike[pos+1] 	= spike[pos+1].masked_fill(out.bool(),t-1)
-        
-        #if find_max_mem:
-        #	return (self.delay_path[2](out_prev) + self.shortcut(inp)).max()
-        #if t==199:
-        #	print((self.delay_path[3](out_prev) + self.shortcut(inp)).max())
-        #if len(self.shortcut)>0:
-        
-        mem[pos+1] 		= leak*mem[pos+1] + self.residual[3](out_prev) + self.identity(inp) - rst
-        #else:
-        #	mem[1] 		= leak_mem*mem[1] + self.delay_path[1](out_prev) + inp - rst
-        
-        out_prev  	= out.clone()
-        
-        #result				= {}
-        #result['out_prev'] 	= out.clone()
-        #result['mem'] 		= mem[:]
-        #result['spike'] 	= spike[:]
+		mem_thr 	= (mem[pos+1]/threshold[pos+1]) - 1.0
+		out 		= act_func(mem_thr, (t-1-spike[pos+1]))
+		rst 		= threshold[pos+1] * (mem_thr>0).float()
+		spike[pos+1] 	= spike[pos+1].masked_fill(out.bool(),t-1)
+
+		#if find_max_mem:
+		#	return (self.delay_path[2](out_prev) + self.shortcut(inp)).max()
+		#if t==199:
+		#	print((self.delay_path[3](out_prev) + self.shortcut(inp)).max())
+		#if len(self.shortcut)>0:
+
+		mem[pos+1] 		= leak*mem[pos+1] + self.residual[3](out_prev) + self.identity(inp) - rst
+		#else:
+		#	mem[1] 		= leak_mem*mem[1] + self.delay_path[1](out_prev) + inp - rst
+
+		out_prev  	= out.clone()
+
+		#result				= {}
+		#result['out_prev'] 	= out.clone()
+		#result['mem'] 		= mem[:]
+		#result['spike'] 	= spike[:]
         
         #pdb.set_trace()
         return out_prev
 
 class RESNET_SNN_STDB(nn.Module):
-	
+
 	#all_layers = []
 	#drop 		= 0.2
 	def __init__(self, resnet_name, activation='Linear', labels=10, timesteps=75, leak=1.0, default_threshold=1.0, alpha=0.5, beta=0.035, dropout=0.2):
-
 		super().__init__()
 
 		self.device = 'cuda:0'
@@ -361,4 +360,4 @@ class RESNET_SNN_STDB(nn.Module):
 		if find_max_mem:
 			return max_mem
 				
-		return self.mem[pos]	
+		return self.mem[pos]
