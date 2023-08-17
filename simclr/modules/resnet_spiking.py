@@ -148,10 +148,10 @@ class RESNET_SNN_STDB(nn.Module):
     # all_layers = []
     # drop 		= 0.2
     def __init__(self, resnet_name, activation='Linear', labels=10, timesteps=75, leak=1.0, default_threshold=1.0,
-                 alpha=0.5, beta=0.035, dropout=0.2):
+                 alpha=0.5, beta=0.035, dropout=0.2, device='cuda:0'):
         super().__init__()
 
-        self.device = 'cuda:0'
+        self.device =  device
         self.resnet_name = resnet_name.lower()
         if activation == 'Linear':
             self.act_func = LinearSpike.apply
@@ -283,6 +283,8 @@ class RESNET_SNN_STDB(nn.Module):
             for index in range(len(layer)):
                 for l in range(len(layer[index].residual)):
                     if isinstance(layer[index].residual[l], nn.Conv2d):
+                        print('mem_pos:', pos, 'shape:', self.batch_size, layer[index].residual[l].out_channels, self.width,
+                                                    self.height)
                         self.mem[pos] = torch.zeros(self.batch_size, layer[index].residual[l].out_channels, self.width,
                                                     self.height)
                         pos = pos + 1

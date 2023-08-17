@@ -96,7 +96,7 @@ def main(gpu, args):
     )
 
     # initialize ResNet, encoder is resnet
-    encoder = get_resnet_spking(args.resnet, pretrained=False)
+    encoder = get_resnet_spking(args.resnet, args.device)
     n_features = encoder.fc.in_features  # get dimensions of fc layer
 
     # initialize model
