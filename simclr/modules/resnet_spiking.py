@@ -110,16 +110,16 @@ class BasicBlock(nn.Module):
 		mem_thr = (mem[pos] / threshold[pos]) - 1.0
 		out = act_func(mem_thr, (t - 1 - spike[pos]))
 		rst = threshold[pos] * (mem_thr > 0).float()
-		spike[pos] = spike[pos].masked_fill(out.bool(), t - 1)
-		mem[pos] = leak * mem[pos] + self.residual[0](inp) - rst
+		spike[pos] = spike[pos].masked_fill(out.bool().cpu(), t - 1)
+		mem[pos] = leak * mem[pos] + self.residual[0](inp).cpu() - rst
 		out_prev = out.clone()
 
 		out_prev = out_prev * mask[pos]
 
 		mem_thr = (mem[pos + 1] / threshold[pos + 1]) - 1.0
-		out = act_func(mem_thr, (t - 1 - spike[pos + 1]))
+		out = act_func(mem_thr, (t - 1 - spike[pos + 1])) #spiking
 		rst = threshold[pos + 1] * (mem_thr > 0).float()
-		spike[pos + 1] = spike[pos + 1].masked_fill(out.bool(), t - 1)
+		spike[pos + 1] = spike[pos + 1].masked_fill(out.bool().cpu(), t - 1)
 
 		# if find_max_mem:
 		#	return (self.delay_path[2](out_prev) + self.shortcut(inp)).max()
@@ -127,7 +127,7 @@ class BasicBlock(nn.Module):
 		#	print((self.delay_path[3](out_prev) + self.shortcut(inp)).max())
 		# if len(self.shortcut)>0:
 
-		mem[pos + 1] = leak * mem[pos + 1] + self.residual[3](out_prev) + self.identity(inp) - rst
+		mem[pos + 1] = leak * mem[pos + 1] + self.residual[3](out_prev).cpu() + self.identity(inp).cpu() - rst
 		# else:
 		#	mem[1] 		= leak_mem*mem[1] + self.delay_path[1](out_prev) + inp - rst
 
@@ -165,7 +165,7 @@ class RESNET_SNN_STDB(nn.Module):
         self.dropout = dropout
         self.input_layer = PoissonGenerator()
         self.threshold = {}
-        self.mem = {}
+        self.mem = {} #put mem, spike on cpu, and mask on gpu
         self.mask = {}
         self.spike = {}
 
