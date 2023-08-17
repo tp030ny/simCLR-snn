@@ -151,7 +151,7 @@ class RESNET_SNN_STDB(nn.Module):
                  alpha=0.5, beta=0.035, dropout=0.2):
         super().__init__()
 
-        self.device = 'cuda:0'
+        self.device = 'cpu'
         self.resnet_name = resnet_name.lower()
         if activation == 'Linear':
             self.act_func = LinearSpike.apply
@@ -328,13 +328,12 @@ class RESNET_SNN_STDB(nn.Module):
                     mem_thr = (self.mem[l] / self.threshold[l]) - 1.0
                     out = self.act_func(mem_thr, (t - 1 - self.spike[l]))
                     rst = self.threshold[l] * (mem_thr > 0).float()
-                    self.spike[l] = self.spike[l].masked_fill(out.bool(),
-                                                              t - 1)  # spiking time将掩码为 True 的位置的元素设置为指定的标量值
+                    self.spike[l] = self.spike[l].masked_fill(out.bool().cpu(), t - 1)  # spiking time将掩码为 True 的位置的元素设置为指定的标量值
 
                     # print('mem:{} l:{}'.format(self.mem[l][0].shape, l))
                     # print('pre:{} l:{}'.format((self.pre_process[l](out_prev)).shape,l))
                     # print('rst:{} l:{}'.format(rst.shape,l))
-                    self.mem[l] = self.leak * self.mem[l] + self.pre_process[l](out_prev) - rst
+                    self.mem[l] = self.leak * self.mem[l] + self.pre_process[l](out_prev).cpu() - rst
                     out_prev = out.clone()
 
                 elif isinstance(self.pre_process[l], nn.AvgPool2d):
