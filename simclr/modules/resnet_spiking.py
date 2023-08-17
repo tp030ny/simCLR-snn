@@ -40,7 +40,7 @@ class STDB(torch.autograd.Function):
 		return out
 
 	@staticmethod
-	def backward(:ctx, grad_output):
+	def backward(ctx, grad_output):
 
 		last_spike, = ctx.saved_tensors
 		grad_input = grad_output.clone()
