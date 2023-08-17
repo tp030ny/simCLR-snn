@@ -267,6 +267,7 @@ class RESNET_SNN_STDB(nn.Module):
         for l in range(len(self.pre_process)):
 
             if isinstance(self.pre_process[l], nn.Conv2d):
+                print('pre_shape:', self.batch_size, self.pre_process[l].out_channels, self.width, self.height)
                 self.mem[l] = torch.zeros(self.batch_size, self.pre_process[l].out_channels, self.width, self.height)
             elif isinstance(self.pre_process[l], nn.Dropout):
                 self.mask[l] = self.pre_process[l](torch.ones(self.mem[l - 2].shape, device=self.device))
