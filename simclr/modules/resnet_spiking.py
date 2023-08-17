@@ -30,10 +30,10 @@ class STDB(torch.autograd.Function):
 
 	alpha 	= ''
 	beta 	= ''
-    
+
 	@staticmethod
 	def forward(ctx, input, last_spike):
-        
+
 		ctx.save_for_backward(last_spike)
 		out = torch.zeros_like(input).cuda()
 		out[input > 0] = 1.0
@@ -41,26 +41,26 @@ class STDB(torch.autograd.Function):
 
 	@staticmethod
 	def backward(ctx, grad_output):
-	    		
+
 		last_spike, = ctx.saved_tensors
 		grad_input = grad_output.clone()
 		grad = STDB.alpha * torch.exp(-1*last_spike)**STDB.beta
 		return grad*grad_input, None
 
 class LinearSpike(torch.autograd.Function):
-    """
+	"""
     Here we use the piecewise-linear surrogate gradient as was done
     in Bellec et al. (2018).
     """
-    gamma = 0.3 # Controls the dampening of the piecewise-linear surrogate gradient
+	gamma = 0.3 # Controls the dampening of the piecewise-linear surrogate gradient
 
-    @staticmethod
-    def forward(ctx, input, last_spike):
+	@staticmethod
+	def forward(ctx, input, last_spike):
         
-        ctx.save_for_backward(input)
-        out = torch.zeros_like(input).cuda()
-        out[input > 0] = 1.0
-        return out
+		ctx.save_for_backward(input)
+		out = torch.zeros_like(input).cuda()
+		out[input > 0] = 1.0
+		return out
 
     @staticmethod
     def backward(ctx, grad_output):
@@ -151,7 +151,8 @@ class RESNET_SNN_STDB(nn.Module):
 	def __init__(self, resnet_name, activation='Linear', labels=10, timesteps=75, leak=1.0, default_threshold=1.0, alpha=0.5, beta=0.035, dropout=0.2):
 
 		super().__init__()
-		
+
+		self.device = 'cuda:0'
 		self.resnet_name	= resnet_name.lower()
 		if activation == 'Linear':
 			self.act_func 	= LinearSpike.apply
@@ -268,9 +269,9 @@ class RESNET_SNN_STDB(nn.Module):
 		for l in range(len(self.pre_process)):
 			
 			if isinstance(self.pre_process[l], nn.Conv2d):
-				self.mem[l] = torch.zeros(self.batch_size, self.pre_process[l].out_channels, self.width, self.height)
+				self.mem[l] = torch.zeros(self.batch_size, self.pre_process[l].out_channels, self.width, self.height, device=self.device)
 			elif isinstance(self.pre_process[l], nn.Dropout):
-				self.mask[l] = self.pre_process[l](torch.ones(self.mem[l-2].shape))
+				self.mask[l] = self.pre_process[l](torch.ones(self.mem[l-2].shape, device=self.device))
 			elif isinstance(self.pre_process[l], nn.AvgPool2d):
 				
 				self.width 	= self.width//self.pre_process[l].kernel_size
@@ -284,10 +285,10 @@ class RESNET_SNN_STDB(nn.Module):
 			for index in range(len(layer)):
 				for l in range(len(layer[index].residual)):
 					if isinstance(layer[index].residual[l],nn.Conv2d):
-						self.mem[pos] = torch.zeros(self.batch_size, layer[index].residual[l].out_channels, self.width, self.height)
+						self.mem[pos] = torch.zeros(self.batch_size, layer[index].residual[l].out_channels, self.width, self.height, device=self.device)
 						pos = pos + 1
 					elif isinstance(layer[index].residual[l],nn.Dropout):
-						self.mask[pos-1] = layer[index].residual[l](torch.ones(self.mem[pos-1].shape))
+						self.mask[pos-1] = layer[index].residual[l](torch.ones(self.mem[pos-1].shape, device=self.device))
 		
 		#average pooling before final layer
 		#self.width 	= self.width//self.avgpool.kernel_size
@@ -296,7 +297,7 @@ class RESNET_SNN_STDB(nn.Module):
 		#final classifier layer
 		# handle the case when fc is an Identity module
 		if not isinstance(self.fc, Identity):
-			self.mem[pos] = torch.zeros(self.batch_size, self.fc.out_features)
+			self.mem[pos] = torch.zeros(self.batch_size, self.fc.out_features, device=self.device)
 
 		self.spike = copy.deepcopy(self.mem)
 		for key, values in self.spike.items():
@@ -326,7 +327,7 @@ class RESNET_SNN_STDB(nn.Module):
 					mem_thr 		= (self.mem[l]/self.threshold[l]) - 1.0
 					out 			= self.act_func(mem_thr, (t-1-self.spike[l]))
 					rst 			= self.threshold[l] * (mem_thr>0).float()
-					self.spike[l] 	= self.spike[l].masked_fill(out.bool(),t-1)
+					self.spike[l] 	= self.spike[l].masked_fill(out.bool(), t-1)#spiking time将掩码为 True 的位置的元素设置为指定的标量值
 					
 					# print('mem:{} l:{}'.format(self.mem[l][0].shape, l))
 					# print('pre:{} l:{}'.format((self.pre_process[l](out_prev)).shape,l))
