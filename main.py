@@ -130,6 +130,8 @@ def main(gpu, args):
     args.global_step = 0
     args.current_epoch = 0
     for epoch in range(args.start_epoch, args.epochs):
+        print('=================')
+        print('epoch:', epoch)
         if train_sampler is not None:
             train_sampler.set_epoch(epoch)
         
