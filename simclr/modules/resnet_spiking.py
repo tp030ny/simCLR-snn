@@ -349,7 +349,7 @@ class RESNET_SNN_STDB(nn.Module):
             if find_max_mem and max_mem_layer < len(self.pre_process):
                 continue
             pos = len(self.pre_process)
-            print('pre-processing layer forward accomplished')
+            # print('pre-processing layer forward accomplished')
 
             for i in range(1, 5):
                 layer = self.layers[i]
@@ -358,7 +358,6 @@ class RESNET_SNN_STDB(nn.Module):
                         {'out_prev': out_prev.clone(), 'pos': pos, 'act_func': self.act_func, 'mem': self.mem,
                          'spike': self.spike, 'mask': self.mask, 'threshold': self.threshold, 't': t,
                          'leak': self.leak})
-                    print('block_pos_forward', pos)
                     pos = pos + 2
 
             # out_prev = self.avgpool(out_prev)
@@ -374,4 +373,5 @@ class RESNET_SNN_STDB(nn.Module):
         if find_max_mem:
             return max_mem
 
+        print('a forward step accomplished')
         return self.mem[pos].to(self.device)
