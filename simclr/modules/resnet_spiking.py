@@ -255,7 +255,7 @@ class RESNET_SNN_STDB(nn.Module):
         self.batch_size = x.size(0)
         self.width = x.size(2)
         self.height = x.size(3)
-        print('image size:', x.size)
+
 
         self.mem = {}
         self.spike = {}
@@ -263,7 +263,7 @@ class RESNET_SNN_STDB(nn.Module):
 
         # self.width 		= [x.size(2), x.size(2)//3, x.size(2)//6, 19, 10]
         # self.height 	= [x.size(3), x.size(3)//3, x.size(3)//6, 19, 10]
-
+        print('image size:', x.size)
         # Pre process layers
         for l in range(len(self.pre_process)):
 
