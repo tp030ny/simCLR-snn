@@ -368,6 +368,8 @@ class RESNET_SNN_STDB(nn.Module):
             if not isinstance(self.fc, Identity):
                 # handle the case when fc is an Identity module
                 self.mem[pos] = self.mem[pos] + self.fc(out_prev).cpu()
+            else:
+                pos = pos-2
 
         if find_max_mem:
             return max_mem
