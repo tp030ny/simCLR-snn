@@ -263,7 +263,7 @@ class RESNET_SNN_STDB(nn.Module):
 
         # self.width 		= [x.size(2), x.size(2)//3, x.size(2)//6, 19, 10]
         # self.height 	= [x.size(3), x.size(3)//3, x.size(3)//6, 19, 10]
-        print('image size:', x.size)
+        print('image size:', x.size(0), x.size(1), x.size(2), x.size(3))
         # Pre process layers
         for l in range(len(self.pre_process)):
 
@@ -349,7 +349,7 @@ class RESNET_SNN_STDB(nn.Module):
             if find_max_mem and max_mem_layer < len(self.pre_process):
                 continue
             pos = len(self.pre_process)
-            # print('pre-processing layer forward accomplished')
+            print('pre-processing layer forward accomplished')
 
             for i in range(1, 5):
                 layer = self.layers[i]
