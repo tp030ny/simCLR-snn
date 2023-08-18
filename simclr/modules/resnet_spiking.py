@@ -194,7 +194,7 @@ class RESNET_SNN_STDB(nn.Module):
         self._initialize_weights2()
 
         x_dummy = torch.zeros(input_shape)
-        self.neuron_init(x_dummy)
+        self._neuron_init(x_dummy)
 
         for l in range(len(self.pre_process)):
             if isinstance(self.pre_process[l], nn.Conv2d):
@@ -253,7 +253,7 @@ class RESNET_SNN_STDB(nn.Module):
         self.timesteps = timesteps
         self.leak = torch.tensor(leak)
 
-    def neuron_init(self, x):
+    def _neuron_init(self, x):
 
         self.batch_size = x.size(0)
         self.width = x.size(2)
