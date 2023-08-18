@@ -148,7 +148,7 @@ class RESNET_SNN_STDB(nn.Module):
     # all_layers = []
     # drop 		= 0.2
     def __init__(self, resnet_name, activation='Linear', labels=10, timesteps=75, leak=1.0, default_threshold=1.0,
-                 alpha=0.5, beta=0.035, dropout=0.2, device='cuda:0'):
+                 alpha=0.5, beta=0.035, dropout=0.2, device='cuda:0', input_shape=[64, 3, 224, 224]):
         super().__init__()
 
         self.device =  device
@@ -192,6 +192,9 @@ class RESNET_SNN_STDB(nn.Module):
         self.layers = {1: self.layer1, 2: self.layer2, 3: self.layer3, 4: self.layer4}
 
         self._initialize_weights2()
+
+        x_dummy = torch.zeros(input_shape)
+        self.neuron_init(x_dummy)
 
         for l in range(len(self.pre_process)):
             if isinstance(self.pre_process[l], nn.Conv2d):
@@ -312,7 +315,6 @@ class RESNET_SNN_STDB(nn.Module):
 
     def forward(self, x, find_max_mem=False, max_mem_layer=0):
 
-        self.neuron_init(x)
         # for key, values in self.mem.items():
         # 	values[0].detach_()
         # for key, values in self.spike.items():
@@ -349,7 +351,6 @@ class RESNET_SNN_STDB(nn.Module):
             if find_max_mem and max_mem_layer < len(self.pre_process):
                 continue
             pos = len(self.pre_process)
-            print('pre-processing layer forward accomplished')
 
             for i in range(1, 5):
                 layer = self.layers[i]
@@ -361,7 +362,7 @@ class RESNET_SNN_STDB(nn.Module):
                     pos = pos + 2
 
             # out_prev = self.avgpool(out_prev)
-            out_prev = out_prev.view(self.batch_size, -1)
+            # out_prev = out_prev.view(self.batch_size, -1)
 
             # Compute the classification layer outputs
             if not isinstance(self.fc, Identity):
@@ -370,8 +371,9 @@ class RESNET_SNN_STDB(nn.Module):
             else:
                 pos = pos-2
 
+            print('single time-step forward accomplished')
         if find_max_mem:
             return max_mem
 
-        print('a forward step accomplished')
+        print('forward for all timestep accomplished')
         return self.mem[pos].to(self.device)
