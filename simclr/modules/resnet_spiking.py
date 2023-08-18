@@ -255,6 +255,7 @@ class RESNET_SNN_STDB(nn.Module):
         self.batch_size = x.size(0)
         self.width = x.size(2)
         self.height = x.size(3)
+        print('image size:', x.size)
 
         self.mem = {}
         self.spike = {}
@@ -307,6 +308,7 @@ class RESNET_SNN_STDB(nn.Module):
         for key, values in self.spike.items():
             for value in values:
                 value.fill_(-1000)
+        print('neuron initialization accomplished')
 
     def forward(self, x, find_max_mem=False, max_mem_layer=0):
 
@@ -347,6 +349,7 @@ class RESNET_SNN_STDB(nn.Module):
             if find_max_mem and max_mem_layer < len(self.pre_process):
                 continue
             pos = len(self.pre_process)
+            print('pre-processing layer forward accomplished')
 
             for i in range(1, 5):
                 layer = self.layers[i]
@@ -355,6 +358,7 @@ class RESNET_SNN_STDB(nn.Module):
                         {'out_prev': out_prev.clone(), 'pos': pos, 'act_func': self.act_func, 'mem': self.mem,
                          'spike': self.spike, 'mask': self.mask, 'threshold': self.threshold, 't': t,
                          'leak': self.leak})
+                    print('block_pos_forward', pos)
                     pos = pos + 2
 
             # out_prev = self.avgpool(out_prev)
