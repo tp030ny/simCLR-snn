@@ -9,7 +9,7 @@ dataset_dir: "./datasets"
 # train options
 seed: 42 # sacred handles automatic seeding when passed in the config
 batch_size: 128
-image_size: 224
+image_size: 32
 start_epoch: 0
 epochs: 100
 timestep: 4 # timestep of SNN
