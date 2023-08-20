@@ -1,379 +1,128 @@
-import torch
-import torch.nn as nn
+from .spike_layer import *
+from math import sqrt
 import torch.nn.functional as F
-import numpy as np
-import pdb
-import math
-from collections import OrderedDict
-import copy
-
-from .identity import Identity
-
-cfg = {
-    'resnet6': [1, 1, 0, 0],
-    'resnet12': [1, 1, 1, 1],
-    'resnet20': [2, 2, 2, 2],
-    'resnet34': [3, 4, 6, 3]
-}
-
-
-class PoissonGenerator(nn.Module):
-
-    def __init__(self):
-        super().__init__()
-
-    def forward(self, input):
-        out = torch.mul(torch.le(torch.rand_like(input), torch.abs(input) * 0.9).float(), torch.sign(input))
-        return out
-
-
-class STDB(torch.autograd.Function):
-    alpha = ''
-    beta = ''
-
-    @staticmethod
-    def forward(ctx, input, last_spike):
-        ctx.save_for_backward(last_spike)
-        out = torch.zeros_like(input).cuda()
-        out[input > 0] = 1.0
-        return out
-
-    @staticmethod
-    def backward(ctx, grad_output):
-        last_spike, = ctx.saved_tensors
-        grad_input = grad_output.clone()
-        grad = STDB.alpha * torch.exp(-1 * last_spike) ** STDB.beta
-        return grad * grad_input, None
-
-
-class LinearSpike(torch.autograd.Function):
-    """
-    Here we use the piecewise-linear surrogate gradient as was done
-    in Bellec et al. (2018).
-    """
-    gamma = 0.3  # Controls the dampening of the piecewise-linear surrogate gradient
-
-    @staticmethod
-    def forward(ctx, input, last_spike):
-        ctx.save_for_backward(input)
-        out = torch.zeros_like(input).cuda()
-        out[input > 0] = 1.0
-        return out
-
-    @staticmethod
-    def backward(ctx, grad_output):
-        input, = ctx.saved_tensors
-        grad_input = grad_output.clone()
-        grad = LinearSpike.gamma * F.threshold(1.0 - torch.abs(input), 0, 0)
-        return grad * grad_input, None
 
 
 class BasicBlock(nn.Module):
-	expansion = 1
+    expansion = 1
 
-	def __init__(self, in_planes, planes, stride, dropout):
-		super(BasicBlock, self).__init__()
+    def __init__(self, in_planes, planes, stride, modified=True):
+        super(BasicBlock, self).__init__()
+        self.conv1 = nn.Conv2d(in_planes, planes, 3, stride, 1, bias=False)
+        self.bn1 = tdBatchNorm(nn.BatchNorm2d(planes))
+        self.conv2 = nn.Conv2d(planes, planes, 3, 1, 1, bias=False)
+        self.bn2 = tdBatchNorm(nn.BatchNorm2d(planes))
+        self.spike_func = MLF_unit()
+        self.shortcut = nn.Sequential()
+        self.modified = modified
 
-		self.residual = nn.Sequential(
-			nn.Conv2d(in_planes, planes, kernel_size=3, stride=stride, padding=1, bias=False),
-			nn.ReLU(),
-			nn.Dropout(dropout),
-			nn.Conv2d(planes, planes, kernel_size=3, stride=1, padding=1, bias=False),
-		)
+        if stride != 1 or in_planes != planes:
+            if self.modified:
+                self.shortcut = nn.Sequential(
+                    nn.Conv2d(in_planes, planes, 1, stride, bias=False),
+                    tdBatchNorm(nn.BatchNorm2d(planes)),
+                    MLF_unit()
+                )
+            else:
+                self.shortcut = nn.Sequential(
+                    nn.Conv2d(in_planes, planes, 1, stride, bias=False),
+                    tdBatchNorm(nn.BatchNorm2d(planes)),
+                )
 
-		self.identity = nn.Sequential()
-		if stride != 1 or in_planes != self.expansion * planes:
-			self.identity = nn.Sequential(
-				nn.Conv2d(in_planes, self.expansion * planes, kernel_size=1, stride=stride, bias=False),
-			)
-		# nn.BatchNorm2d(self.expansion*planes)
+    def forward(self, x):
+        out = self.spike_func(self.bn1(self.conv1(x)))
 
-	def forward(self, dic):
-		# print('In forward BasicBlock')
-		# pdb.set_trace()
-		out_prev = dic['out_prev']
-		pos = dic['pos']
-		act_func = dic['act_func']
-		mem = dic['mem']
-		spike = dic['spike']
-		mask = dic['mask']
-		threshold = dic['threshold']
-		t = dic['t']
-		leak = dic['leak']
-		# find_max_mem 	= dic['find_max_mem']
-		inp = out_prev.clone()
-		# for m in mem:
-		# 	m.detach_()
-		# for s in spike:
-		# 	s.detach_()
+        out = self.bn2(self.conv2(out))
 
-		mem_thr = (mem[pos] / threshold[pos]) - 1.0
-		out = act_func(mem_thr, (t - 1 - spike[pos]))
-		rst = threshold[pos] * (mem_thr > 0).float()
-		spike[pos] = spike[pos].masked_fill(out.bool().cpu(), t - 1)
-		mem[pos] = leak * mem[pos] + self.residual[0](inp).cpu() - rst
-		out_prev = out.clone()
-
-		out_prev = out_prev * mask[pos]
-
-		mem_thr = (mem[pos + 1] / threshold[pos + 1]) - 1.0
-		out = act_func(mem_thr, (t - 1 - spike[pos + 1])) #spiking
-		rst = threshold[pos + 1] * (mem_thr > 0).float()
-		spike[pos + 1] = spike[pos + 1].masked_fill(out.bool().cpu(), t - 1)
-
-		# if find_max_mem:
-		#	return (self.delay_path[2](out_prev) + self.shortcut(inp)).max()
-		# if t==199:
-		#	print((self.delay_path[3](out_prev) + self.shortcut(inp)).max())
-		# if len(self.shortcut)>0:
-
-		mem[pos + 1] = leak * mem[pos + 1] + self.residual[3](out_prev).cpu() + self.identity(inp).cpu() - rst
-		# else:
-		#	mem[1] 		= leak_mem*mem[1] + self.delay_path[1](out_prev) + inp - rst
-
-		out_prev = out.clone()
+        if self.modified:
+            out = self.spike_func(out)
+            out += self.shortcut(x)         # Equivalent to union of all spikes
+        else:
+            out += self.shortcut(x)
+            out = self.spike_func(out)
+        return out
 
 
-		# result				= {}
-		# result['out_prev'] 	= out.clone()
-		# result['mem'] 		= mem[:]
-		# result['spike'] 	= spike[:]
+class BLock_Layer(nn.Module):
+    def __init__(self, block, in_planes, planes, num_block, downsample, modified):
+        super(BLock_Layer, self).__init__()
+        layers = []
+        if downsample:
+            layers.append(block(in_planes, planes, 2, modified))
+        else:
+            layers.append(block(in_planes, planes, 1, modified))
+        for _ in range(1, num_block):
+            layers.append(block(planes, planes, 1, modified))
+        self.execute = nn.Sequential(*layers)
 
-		# pdb.set_trace()
-		return out_prev
+    def forward(self, x):
+        return self.execute(x)
 
 
-class RESNET_SNN_STDB(nn.Module):
+class ResNet(nn.Module):
+    """ Establish ResNet.
+     Spiking DS-ResNet with “modified=True.”
+     Spiking ResNet with “modified=False.”
+     """
+    def __init__(self, block, num_block_layers, timestep, num_classes=10):
+        super(ResNet, self).__init__()
 
-    # all_layers = []
-    # drop 		= 0.2
-    def __init__(self, resnet_name, activation='Linear', labels=10, timesteps=75, leak=1.0, default_threshold=1.0,
-                 alpha=0.5, beta=0.035, dropout=0.2, device='cuda:0', input_shape=[64, 3, 224, 224]):
-        super().__init__()
-
-        self.device =  device
-        self.resnet_name = resnet_name.lower()
-        if activation == 'Linear':
-            self.act_func = LinearSpike.apply
-        elif activation == 'STDB':
-            self.act_func = STDB.apply
-        self.labels = labels
-        self.timesteps = timesteps
-        self.leak = torch.tensor(leak)
-        STDB.alpha = alpha
-        STDB.beta = beta
-        self.dropout = dropout
-        self.input_layer = PoissonGenerator()
-        self.threshold = {}
-        self.mem = {} #put mem, spike on cpu, and mask on gpu
-        self.mask = {}
-        self.spike = {}
-
-        self.pre_process = nn.Sequential(
-            nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False),
-            nn.ReLU(),
-            nn.Dropout(self.dropout),
-            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1, bias=False),
-            nn.ReLU(),
-            nn.Dropout(self.dropout),
-            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1, bias=False),
-            nn.ReLU(),
-            nn.AvgPool2d(2))
-        block = BasicBlock
-        self.in_planes = 64
-
-        self.layer1 = self._make_layer(block, 64, cfg[self.resnet_name][0], stride=1, dropout=self.dropout)
-        self.layer2 = self._make_layer(block, 128, cfg[self.resnet_name][1], stride=2, dropout=self.dropout)
-        self.layer3 = self._make_layer(block, 256, cfg[self.resnet_name][2], stride=2, dropout=self.dropout)
-        self.layer4 = self._make_layer(block, 512, cfg[self.resnet_name][3], stride=2, dropout=self.dropout)
-        # self.avgpool 		= nn.AvgPool2d(2)
-        self.fc = nn.Linear(512 * 2 * 2, labels, bias=False)
-
-        self.layers = {1: self.layer1, 2: self.layer2, 3: self.layer3, 4: self.layer4}
-
-        self._initialize_weights2()
-
-        x_dummy = torch.zeros(input_shape)
-        self._neuron_init(x_dummy)
-
-        for l in range(len(self.pre_process)):
-            if isinstance(self.pre_process[l], nn.Conv2d):
-                self.threshold[l] = torch.tensor(default_threshold)
-
-        pos = len(self.pre_process)
-
-        for i in range(1, 5):
-
-            layer = self.layers[i]
-            for index in range(len(layer)):
-                for l in range(len(layer[index].residual)):
-                    if isinstance(layer[index].residual[l], nn.Conv2d):
-                        self.threshold[pos] = torch.tensor(default_threshold)
-                        pos = pos + 1
-
-    def _initialize_weights2(self):
+        self.timestep = timestep
+        self.conv1 = nn.Conv2d(3, 64, 3, 1, 1, bias=False)
+        self.bn1 = tdBatchNorm(nn.BatchNorm2d(64))
+        self.layer1 = BLock_Layer(block, 64, 64, num_block_layers[0], False, modified=True)
+        self.layer2 = BLock_Layer(block, 64, 128, num_block_layers[1], True, modified=True)
+        self.layer3 = BLock_Layer(block, 128, 256, num_block_layers[2], True, modified=True)
+        self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
+        self.fc = nn.Linear(256, num_classes)
+        self.spike_func = MLF_unit(self.timestep)
 
         for m in self.modules():
+            if isinstance(m, nn.Linear) or isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight)
 
-            if isinstance(m, nn.Conv2d):
-                n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
-                m.weight.data.normal_(0, math.sqrt(2. / n))
-                if m.bias is not None:
-                    m.bias.data.zero_()
-            elif isinstance(m, nn.BatchNorm2d):
-                m.weight.data.fill_(1)
-                m.bias.data.zero_()
-            elif isinstance(m, nn.Linear):
-                n = m.weight.size(1)
-                m.weight.data.normal_(0, 0.01)
-                if m.bias is not None:
-                    m.bias.data.zero_()
+    def forward(self, x):
+        out = self.spike_func(self.bn1(self.conv1(x)))
 
-    def threshold_update(self, scaling_factor=1.0, thresholds=[]):
+        out = self.layer1(out)
+        out = self.layer2(out)
+        out = self.layer3(out)
 
-        self.scaling_factor = scaling_factor
+        out = self.avg_pool(out)
+        out = out.view(out.shape[0], -1)
 
-        for pos in range(len(self.pre_process)):
-            if isinstance(self.pre_process[pos], nn.Conv2d):
-                if thresholds:
-                    self.threshold[pos] = torch.tensor(thresholds.pop(0) * self.scaling_factor)
-
-    def _make_layer(self, block, planes, num_blocks, stride, dropout):
-
-        if num_blocks == 0:
-            return nn.Sequential()
-        strides = [stride] + [1] * (num_blocks - 1)  # 第一个块使用给定的stride，而其余的块使用步幅1
-        layers = []
-        for stride in strides:
-            layers.append(block(self.in_planes, planes, stride, dropout))
-            self.in_planes = planes * block.expansion
-        return nn.Sequential(*layers)
-
-    def network_update(self, timesteps, leak):
-        self.timesteps = timesteps
-        self.leak = torch.tensor(leak)
-
-    def _neuron_init(self, x):
-
-        self.batch_size = x.size(0)
-        self.width = x.size(2)
-        self.height = x.size(3)
+        out = self.fc(out)
+        bs = int(out.shape[0] / self.timestep)
+        o = torch.zeros((bs,) + out.shape[1:], device=out.device)
+        for t in range(self.timestep):
+            o += out[t*bs:(t+1)*bs, ...]
+        o /= self.timestep
+        return o
 
 
-        self.mem = {}
-        self.spike = {}
-        self.mask = {}
+def resnet14(timestep):
+    return ResNet(BasicBlock, [2, 2, 2], timestep)
 
-        # self.width 		= [x.size(2), x.size(2)//3, x.size(2)//6, 19, 10]
-        # self.height 	= [x.size(3), x.size(3)//3, x.size(3)//6, 19, 10]
-        print('image size:', x.size(0), x.size(1), x.size(2), x.size(3))
-        # Pre process layers
-        for l in range(len(self.pre_process)):
+def resnet20(timestep):
+    return ResNet(BasicBlock, [3, 3, 3], timestep)
 
-            if isinstance(self.pre_process[l], nn.Conv2d):
-                print('pre_shape:', self.batch_size, self.pre_process[l].out_channels, self.width, self.height)
-                self.mem[l] = torch.zeros(self.batch_size, self.pre_process[l].out_channels, self.width, self.height)
-            elif isinstance(self.pre_process[l], nn.Dropout):
-                self.mask[l] = self.pre_process[l](torch.ones(self.mem[l - 2].shape, device=self.device))
-            elif isinstance(self.pre_process[l], nn.AvgPool2d):
+def resnet32(timestep):
+    return ResNet(BasicBlock, [5, 5, 5], timestep)
 
-                self.width = self.width // self.pre_process[l].kernel_size
-                self.height = self.height // self.pre_process[l].kernel_size
+def resnet44(timestep):
+    return ResNet(BasicBlock, [7, 7, 7], timestep)
 
-        pos = len(self.pre_process)
-        print('pre_mem_pos:', pos)
-        for i in range(1, 5):
-            layer = self.layers[i]
-            self.width = self.width // layer[0].residual[0].stride[0]
-            self.height = self.height // layer[0].residual[0].stride[0]
-            for index in range(len(layer)):
-                for l in range(len(layer[index].residual)):
-                    if isinstance(layer[index].residual[l], nn.Conv2d):
-                        print('mem_pos:', pos, 'shape:', self.batch_size, layer[index].residual[l].out_channels, self.width,
-                                                    self.height)
-                        self.mem[pos] = torch.zeros(self.batch_size, layer[index].residual[l].out_channels, self.width,
-                                                    self.height)
-                        pos = pos + 1
-                    elif isinstance(layer[index].residual[l], nn.Dropout):
-                        self.mask[pos - 1] = layer[index].residual[l](
-                            torch.ones(self.mem[pos - 1].shape, device=self.device))
+def resnet68(timestep):
+    return ResNet(BasicBlock, [11, 11, 11], timestep)
 
-        # average pooling before final layer
-        # self.width 	= self.width//self.avgpool.kernel_size
-        # self.height = self.height//self.avgpool.kernel_size
-
-        # final classifier layer
-        # handle the case when fc is an Identity module
-        if not isinstance(self.fc, Identity):
-            self.mem[pos] = torch.zeros(self.batch_size, self.fc.out_features)
-
-        self.spike = copy.deepcopy(self.mem)
-        for key, values in self.spike.items():
-            for value in values:
-                value.fill_(-1000)
-        print('neuron initialization accomplished')
-
-    def forward(self, x, find_max_mem=False, max_mem_layer=0):
-
-        # for key, values in self.mem.items():
-        # 	values[0].detach_()
-        # for key, values in self.spike.items():
-        # 	values[0].detach_()
-        # for key, values in self.mask.items():
-        # 	values.detach_()
-
-        max_mem = 0.0
-        for t in range(self.timesteps):
-            out_prev = self.input_layer(x)
-            for l in range(len(self.pre_process)):  # 预处理层
-                if isinstance(self.pre_process[l], nn.Conv2d):
-                    if find_max_mem and l == max_mem_layer:
-                        if (self.pre_process[l](out_prev)).max() > max_mem:
-                            max_mem = (self.pre_process[l](out_prev)).max()
-                        break
-
-                    mem_thr = (self.mem[l] / self.threshold[l]) - 1.0
-                    out = self.act_func(mem_thr, (t - 1 - self.spike[l]))
-                    rst = self.threshold[l] * (mem_thr > 0).float()
-                    self.spike[l] = self.spike[l].masked_fill(out.bool().cpu(), t - 1)  # spiking time将掩码为 True 的位置的元素设置为指定的标量值
-
-                    # print('mem:{} l:{}'.format(self.mem[l][0].shape, l))
-                    # print('pre:{} l:{}'.format((self.pre_process[l](out_prev)).shape,l))
-                    # print('rst:{} l:{}'.format(rst.shape,l))
-                    self.mem[l] = self.leak * self.mem[l] + self.pre_process[l](out_prev).cpu() - rst
-                    out_prev = out.clone()
-
-                elif isinstance(self.pre_process[l], nn.AvgPool2d):
-                    out_prev = self.pre_process[l](out_prev)
-                elif isinstance(self.pre_process[l], nn.Dropout):
-                    out_prev = out_prev * self.mask[l]
-
-            if find_max_mem and max_mem_layer < len(self.pre_process):
-                continue
-            pos = len(self.pre_process)
-
-            for i in range(1, 5):
-                layer = self.layers[i]
-                for index in range(len(layer)):
-                    out_prev = layer[index](
-                        {'out_prev': out_prev.clone(), 'pos': pos, 'act_func': self.act_func, 'mem': self.mem,
-                         'spike': self.spike, 'mask': self.mask, 'threshold': self.threshold, 't': t,
-                         'leak': self.leak})
-                    pos = pos + 2
-
-            # out_prev = self.avgpool(out_prev)
-            # out_prev = out_prev.view(self.batch_size, -1)
-
-            # Compute the classification layer outputs
-            if not isinstance(self.fc, Identity):
-                # handle the case when fc is an Identity module
-                self.mem[pos] = self.mem[pos] + self.fc(out_prev).cpu()
-            else:
-                pos = pos-2
-
-            print('single time-step forward accomplished')
-        if find_max_mem:
-            return max_mem
-
-        print('forward for all timestep accomplished')
-        return self.mem[pos].to(self.device)
+def get_resnet_spiking(name, timestep):
+    if name == "resnet14":
+        return resnet14(timestep)
+    elif name == "resnet20":
+        return resnet20(timestep)
+    elif name == "resnet32":
+        return resnet32(timestep)
+    elif name == "resnet44":
+        return resnet44(timestep)
+    elif name == "resnet68":
+        return resnet68(timestep)

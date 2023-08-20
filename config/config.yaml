@@ -12,6 +12,7 @@ batch_size: 128
 image_size: 224
 start_epoch: 0
 epochs: 100
+timestep: 4 # timestep of SNN
 dataset: "CIFAR10" # STL10
 pretrain: True 
 

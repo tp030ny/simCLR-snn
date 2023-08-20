@@ -15,9 +15,10 @@ from torch.utils.tensorboard import SummaryWriter
 
 # SimCLR
 from simclr import SimCLR
-from simclr.modules import NT_Xent, get_resnet, get_resnet_spking
+from simclr.modules import NT_Xent, get_resnet, get_resnet_spiking
 from simclr.modules.transformations import TransformsSimCLR
 from simclr.modules.sync_batchnorm import convert_model
+
 
 from model import load_optimizer, save_model
 from utils import yaml_config_hook
@@ -25,10 +26,18 @@ from utils import yaml_config_hook
 
 def train(args, train_loader, model, criterion, optimizer, writer):
     loss_epoch = 0
-    for step, ((x_i, x_j), _) in enumerate(train_loader):
+    for step, ((x_i_temp, x_j_temp), _) in enumerate(train_loader):
         optimizer.zero_grad()
-        x_i = x_i.cuda(non_blocking=True)
-        x_j = x_j.cuda(non_blocking=True)
+        x_i_temp = x_i_temp.cuda(non_blocking=True)
+        x_j_temp = x_j_temp.cuda(non_blocking=True)
+
+        timestep = args.timestep
+        b_size = x_i_temp .shape[0]
+        x_i = torch.zeros((timestep * b_size,) + x_i_temp.shape[1:], device=x_i_temp.device)
+        x_j = torch.zeros((timestep * b_size,) + x_j_temp.shape[1:], device=x_j_temp.device)
+        for t in range(timestep):
+            x_i[t*b_size:(t+1)*b_size, ...] = x_i_temp
+            x_j[t*b_size:(t+1)*b_size, ...] = x_j_temp
 
         # positive pair, with encoding
         h_i, h_j, z_i, z_j = model(x_i, x_j)
@@ -96,7 +105,7 @@ def main(gpu, args):
     )
 
     # initialize ResNet, encoder is resnet
-    encoder = get_resnet_spking(args.resnet, args.device, args.batch_size)
+    encoder = get_resnet_spiking(args.resnet, args.timestep)
     n_features = encoder.fc.in_features  # get dimensions of fc layer
 
     # initialize model

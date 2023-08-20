@@ -8,6 +8,7 @@ from simclr.modules.identity import Identity
 class SimCLR(nn.Module):
     """
     We opt for simplicity and adopt the commonly used ResNet (He et al., 2016) to obtain hi = f(x ̃i) = ResNet(x ̃i) where hi ∈ Rd is the output after the average pooling layer.
+    SNN-version
     """
 
     def __init__(self, encoder, projection_dim, n_features):
