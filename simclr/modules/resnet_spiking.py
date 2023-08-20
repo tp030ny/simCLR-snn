@@ -6,13 +6,14 @@ import torch.nn.functional as F
 class BasicBlock(nn.Module):
     expansion = 1
 
-    def __init__(self, in_planes, planes, stride, modified=True):
+    def __init__(self, in_planes, planes, stride, timestep, modified=True):
         super(BasicBlock, self).__init__()
+        self.timestep = timestep
         self.conv1 = nn.Conv2d(in_planes, planes, 3, stride, 1, bias=False)
         self.bn1 = tdBatchNorm(nn.BatchNorm2d(planes))
         self.conv2 = nn.Conv2d(planes, planes, 3, 1, 1, bias=False)
         self.bn2 = tdBatchNorm(nn.BatchNorm2d(planes))
-        self.spike_func = MLF_unit()
+        self.spike_func = MLF_unit(self.timestep)
         self.shortcut = nn.Sequential()
         self.modified = modified
 
@@ -44,15 +45,15 @@ class BasicBlock(nn.Module):
 
 
 class BLock_Layer(nn.Module):
-    def __init__(self, block, in_planes, planes, num_block, downsample, modified):
+    def __init__(self, block, in_planes, planes, num_block, timestep, downsample, modified):
         super(BLock_Layer, self).__init__()
         layers = []
         if downsample:
-            layers.append(block(in_planes, planes, 2, modified))
+            layers.append(block(in_planes, planes, 2, timestep, modified))
         else:
-            layers.append(block(in_planes, planes, 1, modified))
+            layers.append(block(in_planes, planes, 1, timestep, modified))
         for _ in range(1, num_block):
-            layers.append(block(planes, planes, 1, modified))
+            layers.append(block(planes, planes, 1, timestep, modified))
         self.execute = nn.Sequential(*layers)
 
     def forward(self, x):
@@ -70,9 +71,9 @@ class ResNet(nn.Module):
         self.timestep = timestep
         self.conv1 = nn.Conv2d(3, 64, 3, 1, 1, bias=False)
         self.bn1 = tdBatchNorm(nn.BatchNorm2d(64))
-        self.layer1 = BLock_Layer(block, 64, 64, num_block_layers[0], False, modified=True)
-        self.layer2 = BLock_Layer(block, 64, 128, num_block_layers[1], True, modified=True)
-        self.layer3 = BLock_Layer(block, 128, 256, num_block_layers[2], True, modified=True)
+        self.layer1 = BLock_Layer(block, 64, 64, num_block_layers[0], self.timestep, False, modified=True)
+        self.layer2 = BLock_Layer(block, 64, 128, num_block_layers[1], self.timestep, True, modified=True)
+        self.layer3 = BLock_Layer(block, 128, 256, num_block_layers[2], self.timestep, True, modified=True)
         self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
         self.fc = nn.Linear(256, num_classes)
         self.spike_func = MLF_unit(self.timestep)
