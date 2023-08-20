@@ -8,6 +8,7 @@ class BasicBlock(nn.Module):
 
     def __init__(self, in_planes, planes, stride, timestep, modified=True):
         super(BasicBlock, self).__init__()
+
         self.timestep = timestep
         self.conv1 = nn.Conv2d(in_planes, planes, 3, stride, 1, bias=False)
         self.bn1 = tdBatchNorm(nn.BatchNorm2d(planes))
@@ -47,6 +48,7 @@ class BasicBlock(nn.Module):
 class BLock_Layer(nn.Module):
     def __init__(self, block, in_planes, planes, num_block, timestep, downsample, modified):
         super(BLock_Layer, self).__init__()
+
         layers = []
         if downsample:
             layers.append(block(in_planes, planes, 2, timestep, modified))
