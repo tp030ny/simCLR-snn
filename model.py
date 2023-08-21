@@ -32,6 +32,9 @@ def load_optimizer(args, model):
 
 
 def save_model(args, model, optimizer):
+    if not os.path.exists(args.model_path):
+        os.makedirs(args.model_path)
+
     out = os.path.join(args.model_path, "checkpoint_{}.tar".format(args.current_epoch))
 
     # To save a DataParallel model generically, save the model.module.state_dict().
