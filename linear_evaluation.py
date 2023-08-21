@@ -15,8 +15,14 @@ from utils import yaml_config_hook
 def inference(loader, simclr_model, device):
     feature_vector = []
     labels_vector = []
-    for step, (x, y) in enumerate(loader):
-        x = x.to(device)
+    for step, (x_temp, y) in enumerate(loader):
+        x_temp = x_temp.to(device)
+
+        timestep = args.timestep
+        b_size = x_temp.shape[0]
+        x = torch.zeros((timestep * b_size,) + x_temp.shape[1:], device=x_temp.device)
+        for t in range(timestep):
+            x[t*b_size:(t+1)*b_size, ...] = x_temp
 
         # get encoding
         with torch.no_grad():
@@ -24,7 +30,12 @@ def inference(loader, simclr_model, device):
 
         h = h.detach()
 
-        feature_vector.extend(h.cpu().detach().numpy())
+        h_output = torch.zeros((b_size,) + h.shape[1:], device=h.device)
+        for t in range(timestep):
+            h_output += h[t*b_size:(t+1)*b_size, ...]
+        h_output /= timestep
+
+        feature_vector.extend(h_output.cpu().detach().numpy())
         labels_vector.extend(y.numpy())
 
         if step % 20 == 0:
@@ -62,13 +73,24 @@ def create_data_loaders_from_arrays(X_train, y_train, X_test, y_test, batch_size
 def train(args, loader, simclr_model, model, criterion, optimizer):
     loss_epoch = 0
     accuracy_epoch = 0
-    for step, (x, y) in enumerate(loader):
+    for step, (x_temp, y) in enumerate(loader):
         optimizer.zero_grad()
 
-        x = x.to(args.device)
+        x_temp = x_temp.to(args.device)
         y = y.to(args.device)
 
-        output = model(x)
+        timestep = args.timestep
+        b_size = x_temp.shape[0]
+        x = torch.zeros((timestep * b_size,) + x_temp.shape[1:], device=x_temp.device)
+        for t in range(timestep):
+            x[t * b_size:(t + 1) * b_size, ...] = x_temp
+
+        output_temp = model(x)
+        output = torch.zeros((b_size,) + output_temp.shape[1:], device=output_temp.device)
+        for t in range(timestep):
+            output += output_temp[t * b_size:(t + 1) * b_size, ...]
+        output /= timestep
+
         loss = criterion(output, y)
 
         predicted = output.argmax(1)
@@ -91,13 +113,24 @@ def test(args, loader, simclr_model, model, criterion, optimizer):
     loss_epoch = 0
     accuracy_epoch = 0
     model.eval()
-    for step, (x, y) in enumerate(loader):
+    for step, (x_temp, y) in enumerate(loader):
         model.zero_grad()
 
-        x = x.to(args.device)
+        x_temp = x_temp.to(args.device)
         y = y.to(args.device)
 
-        output = model(x)
+        timestep = args.timestep
+        b_size = x_temp.shape[0]
+        x = torch.zeros((timestep * b_size,) + x_temp.shape[1:], device=x_temp.device)
+        for t in range(timestep):
+            x[t*b_size:(t+1)*b_size, ...] = x_temp
+
+        output_temp = model(x)
+        output = torch.zeros((b_size,) + output_temp.shape[1:], device=output_temp.device)
+        for t in range(timestep):
+            output += output_temp[t*b_size:(t+1)*b_size, ...]
+        output /= timestep
+
         loss = criterion(output, y)
 
         predicted = output.argmax(1)
@@ -107,6 +140,7 @@ def test(args, loader, simclr_model, model, criterion, optimizer):
         loss_epoch += loss.item()
 
     return loss_epoch, accuracy_epoch
+
 
 
 if __name__ == "__main__":
