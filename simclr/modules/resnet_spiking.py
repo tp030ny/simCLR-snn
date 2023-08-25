@@ -1,6 +1,7 @@
+# SPIKING VERSION
 from .spike_layer import *
 from math import sqrt
-import torch.nn.functional as F
+import torch.nn.functional as FS
 
 
 class BasicBlock(nn.Module):
@@ -85,7 +86,13 @@ class ResNet(nn.Module):
                 nn.init.kaiming_normal_(m.weight)
 
     def forward(self, x):
-        out = self.spike_func(self.bn1(self.conv1(x)))
+        # expand x to 4 time-steps
+        b_size = x.shape[0]
+        x_temp = torch.zeros((self.timestep * b_size,) + x.shape[1:], device=x.device)
+        for t in range(self.timestep):
+            x_temp[t*b_size:(t+1)*b_size, ...] = x
+
+        out = self.spike_func(self.bn1(self.conv1(x_temp)))
 
         out = self.layer1(out)
         out = self.layer2(out)
