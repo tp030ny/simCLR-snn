@@ -96,12 +96,18 @@ def main(gpu, args):
         sampler=train_sampler,
     )
 
-    # initialize ResNet, encoder is resnet
-    encoder = get_resnet_spiking(args.resnet, args.timestep)
-    n_features = encoder.fc.in_features  # get dimensions of fc layer
+    # initialize ResNet, encoder is resnet/resnet_snn
+    if args.spiking:
+        encoder = get_resnet_spiking(args.resnet, args.timestep)
+        n_features = encoder.fc.in_features  # get dimensions of fc layer
+        # initialize model
+        model = SimCLR_SNN(encoder, args.projection_dim, n_features)
+    else:
+        encoder = get_resnet(args.resnet)
+        n_features = encoder.fc.in_features  # get dimensions of fc layer
+        # initialize model
+        model = SimCLR(encoder, args.projection_dim, n_features)
 
-    # initialize model
-    model = SimCLR(encoder, args.projection_dim, n_features)
     if args.reload:
         model_fp = os.path.join(
             args.model_path, "checkpoint_{}.tar".format(args.epoch_num)

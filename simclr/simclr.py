@@ -60,16 +60,9 @@ class SimCLR_SNN(nn.Module):
         )
 
     def forward(self, x_i, x_j):
-        h_i_temp = self.encoder(x_i)
-        h_j_temp = self.encoder(x_j)
+        _, h_i = self.encoder(x_i)
+        _, h_j = self.encoder(x_j)
 
-        timestep = self.timestep
-        b_size = h_i_temp.shape[0]
-        h_i = torch.zeros((timestep * b_size,) + h_i_temp.shape[1:], device=h_i_temp.device)
-        h_j = torch.zeros((timestep * b_size,) + h_j_temp.shape[1:], device=h_j_temp.device)
-        for t in range(timestep):
-            h_i[t*b_size:(t+1)*b_size, ...] = h_i_temp
-            h_j[t*b_size:(t+1)*b_size, ...] = h_j_temp
 
         z_i_temp = self.projector(h_i)
         z_j_temp = self.projector(h_j)

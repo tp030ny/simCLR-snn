@@ -107,7 +107,7 @@ class ResNet(nn.Module):
         for t in range(self.timestep):
             o += out[t*bs:(t+1)*bs, ...]
         o /= self.timestep
-        return o
+        return o, out
 
 
 def resnet14(timestep):

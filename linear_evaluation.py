@@ -15,14 +15,8 @@ from utils import yaml_config_hook
 def inference(loader, simclr_model, device):
     feature_vector = []
     labels_vector = []
-    for step, (x_temp, y) in enumerate(loader):
-        x_temp = x_temp.to(device)
-
-        timestep = args.timestep
-        b_size = x_temp.shape[0]
-        x = torch.zeros((timestep * b_size,) + x_temp.shape[1:], device=x_temp.device)
-        for t in range(timestep):
-            x[t*b_size:(t+1)*b_size, ...] = x_temp
+    for step, (x, y) in enumerate(loader):
+        x = x.to(device)
 
         # get encoding
         with torch.no_grad():
