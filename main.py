@@ -101,7 +101,7 @@ def main(gpu, args):
         encoder = get_resnet_spiking(args.resnet, args.timestep)
         n_features = encoder.fc.in_features  # get dimensions of fc layer
         # initialize model
-        model = SimCLR_SNN(encoder, args.projection_dim, n_features)
+        model = SimCLR_SNN(encoder, args.projection_dim, n_features, args.timestep)
     else:
         encoder = get_resnet(args.resnet)
         n_features = encoder.fc.in_features  # get dimensions of fc layer
