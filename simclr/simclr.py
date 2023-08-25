@@ -10,10 +10,9 @@ class SimCLR(nn.Module):
     We opt for simplicity and adopt the commonly used ResNet (He et al., 2016) to obtain hi = f(x ̃i) = ResNet(x ̃i) where hi ∈ Rd is the output after the average pooling layer.
     """
 
-    def __init__(self, encoder, projection_dim, n_features, timestep):
+    def __init__(self, encoder, projection_dim, n_features):
         super(SimCLR, self).__init__()
 
-        self.timestep = timestep
         self.encoder = encoder
         self.n_features = n_features
 
