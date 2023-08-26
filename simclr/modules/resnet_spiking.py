@@ -101,7 +101,7 @@ class ResNet(nn.Module):
         out = self.avg_pool(out)
         out = out.view(out.shape[0], -1)
 
-        out = self.fc(out)
+        out = self.fc(out)  # time augmented output
         bs = int(out.shape[0] / self.timestep)
         o = torch.zeros((bs,) + out.shape[1:], device=out.device)
         for t in range(self.timestep):

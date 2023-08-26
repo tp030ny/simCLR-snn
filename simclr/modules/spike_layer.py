@@ -26,13 +26,13 @@ class MLF_unit(nn.Module):
         bs = int(x.shape[0] / self.timestep)
         u = torch.zeros((bs,) + x.shape[1:], device=x.device)
         u2 = torch.zeros((bs,) + x.shape[1:], device=x.device)
-        u3 = torch.zeros((bs,) + x.shape[1:], device=x.device) # comment this line if you want MLF (K=2)
+        u3 = torch.zeros((bs,) + x.shape[1:], device=x.device)  # comment this line if you want MLF (K=2)
         o = torch.zeros(x.shape, device=x.device)
         for t in range(self.timestep):
             u = tau * u * (1 - spikefunc(u)) + x[t * bs:(t + 1) * bs, ...]
             u2 = tau * u2 * (1 - spikefunc2(u2)) + x[t * bs:(t + 1) * bs, ...]
             u3 = tau * u3 * (1 - spikefunc3(u3)) + x[t * bs:(t + 1) * bs, ...] # comment this line if you want MLF (K=2)
-            o[t*bs:(t+1)*bs, ...] = spikefunc(u) + spikefunc2(u2) + spikefunc3(u3) # Equivalent to union of all spikes
+            o[t*bs:(t+1)*bs, ...] = spikefunc(u) + spikefunc2(u2) + spikefunc3(u3)  # Equivalent to union of all spikes
         return o
 
 

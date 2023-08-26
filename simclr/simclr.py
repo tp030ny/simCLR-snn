@@ -66,6 +66,7 @@ class SimCLR_SNN(nn.Module):
         z_i_temp = self.projector(h_i)
         z_j_temp = self.projector(h_j)
 
+        b_size = int(z_i_temp.shape[0] / self.timestep)
         z_i = torch.zeros((b_size,) + z_i_temp.shape[1:], device=z_i_temp.device)
         z_j = torch.zeros((b_size,) + z_j_temp.shape[1:], device=z_j_temp.device)
         for t in range(self.timestep):

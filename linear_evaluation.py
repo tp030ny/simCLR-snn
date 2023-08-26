@@ -5,88 +5,28 @@ import torchvision
 import torchvision.transforms as transforms
 import numpy as np
 
-from simclr import SimCLR
-from simclr.modules import LogisticRegression, get_resnet
+from simclr import SimCLR, SimCLR_SNN
+from simclr.modules import LogisticRegression, get_resnet, get_resnet_spiking
 from simclr.modules.transformations import TransformsSimCLR
 
 from utils import yaml_config_hook
 
 
-def inference(loader, simclr_model, device):
-    feature_vector = []
-    labels_vector = []
-    for step, (x, y) in enumerate(loader):
-        x = x.to(device)
-
-        # get encoding
-        with torch.no_grad():
-            h, _, z, _ = simclr_model(x, x)
-
-        h = h.detach()
-
-        h_output = torch.zeros((b_size,) + h.shape[1:], device=h.device)
-        for t in range(timestep):
-            h_output += h[t*b_size:(t+1)*b_size, ...]
-        h_output /= timestep
-
-        feature_vector.extend(h_output.cpu().detach().numpy())
-        labels_vector.extend(y.numpy())
-
-        if step % 20 == 0:
-            print(f"Step [{step}/{len(loader)}]\t Computing features...")
-
-    feature_vector = np.array(feature_vector)
-    labels_vector = np.array(labels_vector)
-    print("Features shape {}".format(feature_vector.shape))
-    return feature_vector, labels_vector
-
-
-def get_features(simclr_model, train_loader, test_loader, device):
-    train_X, train_y = inference(train_loader, simclr_model, device)
-    test_X, test_y = inference(test_loader, simclr_model, device)
-    return train_X, train_y, test_X, test_y
-
-
-def create_data_loaders_from_arrays(X_train, y_train, X_test, y_test, batch_size):
-    train = torch.utils.data.TensorDataset(
-        torch.from_numpy(X_train), torch.from_numpy(y_train)
-    )
-    train_loader = torch.utils.data.DataLoader(
-        train, batch_size=batch_size, shuffle=False
-    )
-
-    test = torch.utils.data.TensorDataset(
-        torch.from_numpy(X_test), torch.from_numpy(y_test)
-    )
-    test_loader = torch.utils.data.DataLoader(
-        test, batch_size=batch_size, shuffle=False
-    )
-    return train_loader, test_loader
-
-
-def train(args, loader, simclr_model, model, criterion, optimizer):
+def train(args, loader, model, criterion, optimizer):
     loss_epoch = 0
     accuracy_epoch = 0
-    for step, (x_temp, y) in enumerate(loader):
+    for step, (x, y) in enumerate(loader):
         optimizer.zero_grad()
 
-        x_temp = x_temp.to(args.device)
+        x = x.to(args.device)
         y = y.to(args.device)
 
-        timestep = args.timestep
-        b_size = x_temp.shape[0]
-        x = torch.zeros((timestep * b_size,) + x_temp.shape[1:], device=x_temp.device)
-        for t in range(timestep):
-            x[t * b_size:(t + 1) * b_size, ...] = x_temp
-
-        output_temp = model(x)
-        output = torch.zeros((b_size,) + output_temp.shape[1:], device=output_temp.device)
-        for t in range(timestep):
-            output += output_temp[t * b_size:(t + 1) * b_size, ...]
-        output /= timestep
+        if args.spiking:
+            output, _ = model(x)
+        else:
+            output = model(x)
 
         loss = criterion(output, y)
-
         predicted = output.argmax(1)
         acc = (predicted == y).sum().item() / y.size(0)
         accuracy_epoch += acc
@@ -103,30 +43,22 @@ def train(args, loader, simclr_model, model, criterion, optimizer):
     return loss_epoch, accuracy_epoch
 
 
-def test(args, loader, simclr_model, model, criterion, optimizer):
+def test(args, loader, model, criterion, optimizer):
     loss_epoch = 0
     accuracy_epoch = 0
     model.eval()
-    for step, (x_temp, y) in enumerate(loader):
+    for step, (x, y) in enumerate(loader):
         model.zero_grad()
 
-        x_temp = x_temp.to(args.device)
+        x = x.to(args.device)
         y = y.to(args.device)
 
-        timestep = args.timestep
-        b_size = x_temp.shape[0]
-        x = torch.zeros((timestep * b_size,) + x_temp.shape[1:], device=x_temp.device)
-        for t in range(timestep):
-            x[t*b_size:(t+1)*b_size, ...] = x_temp
-
-        output_temp = model(x)
-        output = torch.zeros((b_size,) + output_temp.shape[1:], device=output_temp.device)
-        for t in range(timestep):
-            output += output_temp[t*b_size:(t+1)*b_size, ...]
-        output /= timestep
+        if args.spiking:
+            output, _ = model(x)
+        else:
+            output = model(x)
 
         loss = criterion(output, y)
-
         predicted = output.argmax(1)
         acc = (predicted == y).sum().item() / y.size(0)
         accuracy_epoch += acc
@@ -191,45 +123,44 @@ if __name__ == "__main__":
         num_workers=args.workers,
     )
 
-    encoder = get_resnet(args.resnet, pretrained=False)
-    n_features = encoder.fc.in_features  # get dimensions of fc layer
+    if args.spiking:
+        model = get_resnet_spiking(args.resnet, args.timestep)
+    else:
+        model = get_resnet(args.resnet)
 
-    # load pre-trained model from checkpoint
-    simclr_model = SimCLR(encoder, args.projection_dim, n_features)
-    model_fp = os.path.join(args.model_path, "checkpoint_{}.tar".format(args.epoch_num))
-    simclr_model.load_state_dict(torch.load(model_fp, map_location=args.device.type))
-    simclr_model = simclr_model.to(args.device)
-    simclr_model.eval()
-
-    ## Logistic Regression
-    n_classes = 10  # CIFAR-10 / STL-10
-    model = LogisticRegression(simclr_model.n_features, n_classes)
     model = model.to(args.device)
+    # Load weights from pre-trained file
+    model_fp = os.path.join(args.model_path, "checkpoint_{}.tar".format(args.epoch_num))
+
+    # Match layers
+    model_dict = model.state_dict()
+    pretrained_dict = torch.load(model_fp, map_location=args.device.type)
+    filtered_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict and "encoder" in k}
+    model_dict.update(filtered_dict)
+    model.load_state_dict(model_dict)
+
+    for param in model.parameters():
+        param.requires_grad = False
+    # Only the fc layer has requires_grad = True
+    model.fc.requires_grad = True
+
 
     optimizer = torch.optim.Adam(model.parameters(), lr=3e-4)
     criterion = torch.nn.CrossEntropyLoss()
 
-    print("### Creating features from pre-trained context model ###")
-    (train_X, train_y, test_X, test_y) = get_features(
-        simclr_model, train_loader, test_loader, args.device
-    )
-
-    arr_train_loader, arr_test_loader = create_data_loaders_from_arrays(
-        train_X, train_y, test_X, test_y, args.logistic_batch_size
-    )
 
     for epoch in range(args.logistic_epochs):
         loss_epoch, accuracy_epoch = train(
-            args, arr_train_loader, simclr_model, model, criterion, optimizer
+            args, train_loader, model, criterion, optimizer
         )
         print(
-            f"Epoch [{epoch}/{args.logistic_epochs}]\t Loss: {loss_epoch / len(arr_train_loader)}\t Accuracy: {accuracy_epoch / len(arr_train_loader)}"
+            f"Epoch [{epoch}/{args.logistic_epochs}]\t Loss: {loss_epoch / len(train_loader)}\t Accuracy: {accuracy_epoch / len(train_loader)}"
         )
 
     # final testing
     loss_epoch, accuracy_epoch = test(
-        args, arr_test_loader, simclr_model, model, criterion, optimizer
+        args, test_loader, model, criterion, optimizer
     )
     print(
-        f"[FINAL]\t Loss: {loss_epoch / len(arr_test_loader)}\t Accuracy: {accuracy_epoch / len(arr_test_loader)}"
+        f"[FINAL]\t Loss: {loss_epoch / len(test_loader)}\t Accuracy: {accuracy_epoch / len(test_loader)}"
     )
