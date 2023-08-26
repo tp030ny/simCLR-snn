@@ -127,25 +127,31 @@ if __name__ == "__main__":
         model = get_resnet_spiking(args.resnet, args.timestep)
     else:
         model = get_resnet(args.resnet)
-
     model = model.to(args.device)
+
     # Load weights from pre-trained file
     model_fp = os.path.join(args.model_path, "checkpoint_{}.tar".format(args.epoch_num))
 
-    # Match layers
+    # Map the keys from the source model to the target model
     model_dict = model.state_dict()
     pretrained_dict = torch.load(model_fp, map_location=args.device.type)
-    filtered_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict and "encoder" in k}
-    model_dict.update(filtered_dict)
-    model.load_state_dict(model_dict)
+    new_dict = {}
+    for k, v in pretrained_dict.items():
+        if "encoder." in k:
+            # Remove the 'encoder.' prefix and use the rest as the key for the target model
+            key = k.replace("encoder.", "")
+            new_dict[key] = v
+
+    model.load_state_dict(new_dict, strict=False)
 
     for param in model.parameters():
         param.requires_grad = False
     # Only the fc layer has requires_grad = True
-    model.fc.requires_grad = True
+    for param in model.fc.parameters():
+        param.requires_grad = True
 
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=3e-4)
+    optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=3e-4)
     criterion = torch.nn.CrossEntropyLoss()
 
 
