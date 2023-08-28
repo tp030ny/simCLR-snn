@@ -15,7 +15,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 # SimCLR
 from simclr import SimCLR, SimCLR_SNN
-from simclr.modules import NT_Xent, get_resnet, get_resnet_spiking
+from simclr.modules import NT_Xent, NT_Xent_temporal, get_resnet, get_resnet_spiking
 from simclr.modules.transformations import TransformsSimCLR
 from simclr.modules.sync_batchnorm import convert_model
 
@@ -32,9 +32,12 @@ def train(args, train_loader, model, criterion, optimizer, writer):
         x_j = x_j.cuda(non_blocking=True)
 
         # positive pair, with encoding
-        h_i, h_j, z_i, z_j = model(x_i, x_j)
+        h_i, h_j, z_i, z_j, z_i_temporal, z_j_temporal = model(x_i, x_j)
 
-        loss = criterion(z_i, z_j)
+        if args.temporal_loss:
+            loss = criterion(z_i_temporal, z_j_temporal)
+        else:
+            loss = criterion(z_i, z_j)
         loss.backward()
 
         optimizer.step()
@@ -43,7 +46,7 @@ def train(args, train_loader, model, criterion, optimizer, writer):
             loss = loss.data.clone()
             dist.all_reduce(loss.div_(dist.get_world_size()))
 
-        if args.nr == 0 and step % 50 == 0:
+        if args.nr == 0 and step % 100 == 0:
             print(f"Step [{step}/{len(train_loader)}]\t Loss: {loss.item()}")
 
         if args.nr == 0:
@@ -117,7 +120,10 @@ def main(gpu, args):
 
     # optimizer / loss
     optimizer, scheduler = load_optimizer(args, model)
-    criterion = NT_Xent(args.batch_size, args.temperature, args.world_size)
+    if args.temporal_loss:
+        criterion = NT_Xent_temporal(args.batch_size, args.temperature, args.world_size, args.temporal)
+    else:
+        criterion = NT_Xent(args.batch_size, args.temperature, args.world_size)
 
     # DDP / DP
     if args.dataparallel:
@@ -135,10 +141,9 @@ def main(gpu, args):
         writer = SummaryWriter()
 
     args.global_step = 0
-    args.current_epoch = 0
+    args.current_epoch = args.start_epoch
     for epoch in range(args.start_epoch, args.epochs):
-        print('=================')
-        print('epoch:', epoch)
+        print('===================================')
         if train_sampler is not None:
             train_sampler.set_epoch(epoch)
         
@@ -182,6 +187,7 @@ if __name__ == "__main__":
     args.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     args.num_gpus = torch.cuda.device_count()
     args.world_size = args.gpus * args.nodes
+    print(vars(args))
 
     if args.nodes > 1:
         print(

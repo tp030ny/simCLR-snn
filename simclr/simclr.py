@@ -59,11 +59,11 @@ class SimCLR_SNN(nn.Module):
         )
 
     def forward(self, x_i, x_j):
-        _, h_i = self.encoder(x_i)
+        _, h_i = self.encoder(x_i)  # time step augmented
         _, h_j = self.encoder(x_j)
 
 
-        z_i_temp = self.projector(h_i)
+        z_i_temp = self.projector(h_i) # time step augmented
         z_j_temp = self.projector(h_j)
 
         b_size = int(z_i_temp.shape[0] / self.timestep)
@@ -74,4 +74,4 @@ class SimCLR_SNN(nn.Module):
             z_j += z_j_temp[t*b_size:(t+1)*b_size, ...]
         z_i /= self.timestep
         z_j /= self.timestep
-        return h_i, h_j, z_i, z_j
+        return h_i, h_j, z_i, z_j, z_i_temp, z_j_temp

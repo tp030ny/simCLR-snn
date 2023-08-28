@@ -1,7 +1,7 @@
 # SPIKING VERSION
 from .spike_layer import *
 from math import sqrt
-import torch.nn.functional as FS
+import torch.nn.functional as F
 
 
 class BasicBlock(nn.Module):
