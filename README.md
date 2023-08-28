@@ -6,8 +6,8 @@ Including support for:
 [Link to paper](https://arxiv.org/pdf/2002.05709.pdf)
 
 
-### Training ResNet encoder:
-Simply run the following to pre-train a ResNet encoder using SimCLR_snn version on the CIFAR-10 dataset:
+### Training ResNet_spiking encoder:
+Simply run the following to pre-train a ResNet_spiking encoder using SimCLR_snn version on the CIFAR-10 dataset:
 ```
 python main.py --dataset CIFAR10 --resnet="resnet32" --spiking=True
 ```
