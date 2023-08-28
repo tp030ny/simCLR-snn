@@ -3,49 +3,13 @@ PyTorch implementation of SimCLR by snn: A Simple Framework for Contrastive Lear
 Including support for:
 - Distributed data parallel training
 - Global batch normalization
-- LARS (Layer-wise Adaptive Rate Scaling) optimizer.
-
 [Link to paper](https://arxiv.org/pdf/2002.05709.pdf)
 
 
-
-
-### Quickstart (fine-tune linear classifier)
-This downloads a pre-trained model and trains the linear classifier, which should receive an accuracy of ±`82.9%` on the STL-10 test set.
+### Training ResNet_spiking encoder:
+Simply run the following to pre-train a ResNet_spiking encoder using SimCLR_snn version on the CIFAR-10 dataset:
 ```
-git clone https://github.com/spijkervet/SimCLR.git && cd SimCLR
-wget https://github.com/Spijkervet/SimCLR/releases/download/1.2/checkpoint_100.tar
-sh setup.sh || python3 -m pip install -r requirements.txt || exit 1
-conda activate simclr
-python linear_evaluation.py --dataset=STL10 --model_path=. --epoch_num=100 --resnet resnet50
-```
-
-#### CPU
-```
-wget https://github.com/Spijkervet/SimCLR/releases/download/1.1/checkpoint_100.tar -O checkpoint_100.tar
-python linear_evaluation.py --model_path=. --epoch_num=100 --resnet=resnet18 --logistic_batch_size=32
-```
-
-### `simclr` package
-SimCLR for PyTorch is now available as a Python package! Simply run and use it in your project:
-```
-pip install simclr
-```
-
-You can then simply import SimCLR:
-```
-from simclr import SimCLR
-
-encoder = ResNet(...)
-projection_dim = 64
-n_features = encoder.fc.in_features  # get dimensions of last fully-connected layer
-model = SimCLR(encoder, projection_dim, n_features)
-```
-
-### Training ResNet encoder:
-Simply run the following to pre-train a ResNet encoder using SimCLR on the CIFAR-10 dataset:
-```
-python main.py --dataset CIFAR10
+python main.py --dataset CIFAR10 --resnet="resnet32" --spiking=True
 ```
 
 ### Distributed Training
@@ -81,7 +45,7 @@ pip install -r requirements.txt
 
 Then, simply run for single GPU or CPU training:
 ```
-python main.py
+python main.py --resnet="resnet32" --spiking=True
 ```
 
 For distributed training (DDP), use for every process in nodes, in which N is the GPU number you would like to dedicate the process to:
@@ -104,7 +68,7 @@ python linear_evaluation.py
 
 or in place:
 ```
-python linear_evaluation.py --model_path=./save --epoch_num=40
+python linear_evaluation.py --model_path=./save --epoch_num=100 --resnet="resnet32" --spiking=True
 ```
 
 
